@@ -1,0 +1,32 @@
+name: Deploy to GCE
+
+on:
+  push:
+    branches: [testing-new]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup SSH Key
+        run: |
+          echo "${{ secrets.GCP_SSH_KEY }}" > gcp_key
+          chmod 600 gcp_key
+
+      - name: Copy files to GCE
+        run: |
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no -i gcp_key" \
+            --exclude='.git*' --exclude='node_modules' \
+            ./ ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:~/poc-portopilio
+
+      - name: Build and run Docker on GCE
+        run: |
+          ssh -o StrictHostKeyChecking=no -i gcp_key ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} << 'EOF'
+            cd ~/poc-portopilio
+            docker compose down
+            docker compose up --build -d
+          EOF
